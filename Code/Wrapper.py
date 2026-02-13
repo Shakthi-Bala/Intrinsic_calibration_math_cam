@@ -137,3 +137,29 @@ A = np.array([
 ])
 
 print(f"Intrinsic matrix is: {A}")
+
+# Extrinsic Matrix
+A_inv = np.linalg.inv(A)
+
+extrinsics = []
+for i, H in enumerate(homographies):
+    h1 = H[:, 0]
+    h2 = H[:, 1]
+    h3 = H[:, 3]
+
+    lam_scale = 1 / (A_inv @ h1)
+    r1 = lam_scale * (A_inv @ h1)
+    r2 = lam_scale * (A_inv @ h2)
+    r3 = np.cross(r1, r2)
+    t = lam_scale * (A_inv @ h3)
+
+    Q = np.stack((r1, r2, r3), axis =1)
+    
+    U, S, Vt = np.linalg.svd(Q)
+    R = U @ Vt
+    extrinsics.append((R, t))
+    print(f"For image: {i}, translation vector: {t}")
+
+print(f"Computed Extrinsics for {len(extrinsics)} images")
+
+
