@@ -7,7 +7,7 @@ folder = "/home/alien/CV_p1/Calibration_Imgs"
 pattern_size = (9,6)
 square_size = 0.025
 
-extensions = ("*.jpg")
+extensions = ["*.jpg"]
 image_paths = []
 
 for ext in extensions:
@@ -17,9 +17,9 @@ image_paths.sort()
 if len(image_paths) == 0:
     raise RuntimeError(f"No images in the folder: {folder}")
 
-objp_2d = np.zeros((pattern_size[0] * pattern_size[1], 2), np.float32)
-objp_2d[:, :2] = np.mgrid[0:pattern_size[0], 0:pattern_size[1]].T.reshape(-1,2)
-objp_2d = objp_2d * square_size
+objp_3d = np.zeros((pattern_size[0] * pattern_size[1], 3), np.float32)
+objp_3d[:, :2] = np.mgrid[0:pattern_size[0], 0:pattern_size[1]].T.reshape(-1,2)
+objp_3d = objp_3d * square_size
 
 objpoints = []
 imgpoints = []
@@ -33,13 +33,14 @@ for fname in image_paths:
     ret, corners = cv2.findChessboardCorners(gray, pattern_size, None)
 
     if ret:
-        objpoints.append(objp_2d)
+        objpoints.append(objp_3d)
         corners2 = cv2.cornerSubPix(gray, corners, (11,11), (-1,-1), criteria)
         imgpoints.append(corners2.squeeze())
 print(f"Extracted corners from {len(imgpoints)} images")
 
 def compute_homography(obj_pts, img_pts):
 
+    obj_pts = obj_pts[:, :2]
     #Normalization
     mean_obj = np.mean(obj_pts, axis = 0)
     mean_img = np.mean(img_pts, axis = 0)
@@ -95,9 +96,9 @@ def create_v(H, i, j):
 
     return np.array([
         hi[0]*hj[0],
-        hi[0]*hj[1] + hi[1]*hj[1],
+        hi[0]*hj[1] + hi[1]*hj[0],
         hi[1]*hj[1],
-        hi[2]*hj[0] + hi[0]*hj[3],
+        hi[2]*hj[0] + hi[0]*hj[2],
         hi[2]*hj[1] + hi[1]*hj[2],
         hi[2]*hj[2]
     ])
@@ -119,7 +120,7 @@ b = Vh[-1]
 
 # Intrinsic parameters
 
-B11, B12, B22, B13, B23, B33 = b[0], b[1], b[2], b[3]. b[4], b[4]
+B11, B12, B22, B13, B23, B33 = b[0], b[1], b[2], b[3], b[4], b[5]
 
 v0 = (B12*B13 - B11*B23) / (B11*B22 - B12*B12)
 lam = B33 - (B13*B13 + v0*(B12*B13 - B11*B23)) / B11
@@ -145,9 +146,11 @@ extrinsics = []
 for i, H in enumerate(homographies):
     h1 = H[:, 0]
     h2 = H[:, 1]
-    h3 = H[:, 3]
+    h3 = H[:, 2]
 
-    lam_scale = 1 / (A_inv @ h1)
+    norm_val = np.linalg.norm(A_inv @ h1)
+    lam_scale = 1 / norm_val
+
     r1 = lam_scale * (A_inv @ h1)
     r2 = lam_scale * (A_inv @ h2)
     r3 = np.cross(r1, r2)
