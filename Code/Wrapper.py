@@ -210,3 +210,51 @@ k2 = k_coeffs[1]
 
 print(f"Estimated Distorsion Coefficients: {k1} and {k2}")
 
+
+#Reprojection Error
+def calculate_rerprojection_error(objpoints, imgpoints, A, k1, k2, extrinsics):
+    
+    total_error_sq = 0
+    total_points = 0
+
+    alpha, beta, gamma = A[0,0] , A[1,1], A[0,1]
+    u0, v0 = A[0,2], A[1,2]
+
+    print("\n----- Reprojection Error Report ----")
+
+    for i, (obj_pts, img_pts) in enumerate(zip(objpoints, imgpoints)):
+        R, t = extrinsics[i]
+
+        t_col = t.reshape(3,1)
+        P_c = (R @ obj_pts.T) + t_col
+
+        x_norm = P_c[0] / P_c[2]
+        y_norm = P_c[1] / P_c[2]
+
+        r2 = x_norm**2 + y_norm**2
+        r4 = r2**2
+        
+        k_factor = 1 + k1 * r2 + k2 * r4
+
+        x_dist = x_norm * k_factor
+        y_dist = y_norm * k_factor
+
+        u_proj = alpha * x_dist + gamma * y_dist + u0
+        v_proj = beta * y_dist + v0
+
+        projected_pts = np.stack((u_proj, v_proj), axis=1)
+        
+        error = np.linalg.norm(img_pts - projected_pts, axis = 1)
+
+        image_error_sq = np.sum(error**2)
+        total_error_sq += image_error_sq
+        total_points += len(obj_pts)
+
+        rms_img = np.sqrt(image_error_sq / len(obj_pts))
+        print(f"Image {i} RMS Error: {rms_img: .4f} pixels")
+    
+    total_rms = np.sqrt(total_error_sq / total_points)
+    return total_rms
+
+rms_error = calculate_rerprojection_error(objpoints, imgpoints, A, k1, k2, extrinsics)
+print(f"Total RMS Reprojection Error: {rms_error: .4f} pixels")
