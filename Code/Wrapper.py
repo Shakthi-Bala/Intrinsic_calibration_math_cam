@@ -163,3 +163,50 @@ for i, H in enumerate(homographies):
 print(f"Computed Extrinsics for {len(extrinsics)} images")
 
 
+#Radial Distorsion Estimation 
+D = []
+d = []
+
+for i, (obj_pts, img_pts) in enumerate(zip(objpoints, imgpoints)):
+ 
+    R, t = extrinsics[i]
+
+    for j in range(len(obj_pts)):
+        M = obj_pts[j]
+        m_obs =  img_pts[j]
+
+        M_col = M.reshape(3,1)
+        t_col = t.reshape(3,1)
+
+        P_c = (R @ M_col) + t_col
+
+        x_norm = P_c[0] / P_c[2]
+        y_norm = P_c[1] / P_c[2]
+
+        r2 = x_norm**2 + y_norm**2
+        r4 = r2**2
+
+        #Projection to Ideal Pixel Coordinates using A
+
+        u_ideal = alpha * x_norm + gamma * y_norm + u0
+        v_ideal = beta * y_norm + v0
+
+        # For u component
+        D.append([(u_ideal - u0)*r2, (u_ideal -u0)*r4])
+        d.append(m_obs[0] - u_ideal)
+
+        # For v component
+        D.append([(v_ideal - v0)*r2, (v_ideal -v0)*r4])
+        d.append(m_obs[1] - v_ideal)
+
+D = np.array(D).reshape(-1, 2)
+d = np.array(d).reshape(-1)
+
+#Solving least squares
+k_coeffs, residuals, rank, s = np.linalg.lstsq(D, d, rcond = None)
+
+k1 = k_coeffs[0]
+k2 = k_coeffs[1]
+
+print(f"Estimated Distorsion Coefficients: {k1} and {k2}")
+
