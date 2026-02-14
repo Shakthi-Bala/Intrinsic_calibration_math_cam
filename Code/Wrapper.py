@@ -312,9 +312,9 @@ def save_reprojected_images(image_paths, objpoints, imgpoints, A, k1, k2, extrin
             obs = tuple(np.round(obs).astype(int))
             proj = tuple(np.round(proj).astype(int))
 
-            cv2.circle(vis, obs, 4, (0,255,0), -1)
+            cv2.circle(vis, obs, 10, (0,255,0), -1)
 
-            cv2.circle(vis, proj, 4, (0,0,255), -1)
+            cv2.circle(vis, proj, 10, (0,0,255), -1)
 
         base = os.path.splitext(os.path.basename(image_paths[i]))[0]
         out_path = os.path.join(out_reproj_dir, f"{base}_reprojection.png")
