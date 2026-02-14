@@ -4,6 +4,14 @@ import os
 import glob
 
 folder = "/home/alien/CV_p1/Calibration_Imgs"
+
+out_corners_dir = "/home/alien/CV_p1/outputs/corners"
+os.makedirs(out_corners_dir, exist_ok=True)
+
+out_reproj_dir = "/home/alien/CV_p1/outputs/reprojection"
+os.makedirs(out_reproj_dir, exist_ok=True)
+
+
 pattern_size = (9,6)
 square_size = 0.025
 
@@ -35,7 +43,13 @@ for fname in image_paths:
     if ret:
         objpoints.append(objp_3d)
         corners2 = cv2.cornerSubPix(gray, corners, (11,11), (-1,-1), criteria)
+        vis = img.copy()
+        cv2.drawChessboardCorners(vis, pattern_size, corners2, ret)
+        base = os.path.splitext(os.path.basename(fname))[0]
+        out_path = os.path.join(out_corners_dir, f"{base}_corners.png")
+        cv2.imwrite(out_path, vis)
         imgpoints.append(corners2.squeeze())
+
 print(f"Extracted corners from {len(imgpoints)} images")
 
 def compute_homography(obj_pts, img_pts):
@@ -261,3 +275,49 @@ def calculate_rerprojection_error(objpoints, imgpoints, A, k1, k2, extrinsics):
 
 rms_error = calculate_rerprojection_error(objpoints, imgpoints, A, k1, k2, extrinsics)
 print(f"Total RMS Reprojection Error: {rms_error: .4f} pixels")
+
+
+def save_reprojected_images(image_paths, objpoints, imgpoints, A, k1, k2, extrinsics):
+    
+    alpha, beta, gamma = A[0,0], A[1,1], A[0,1]
+    u0, v0 = A[0,2], A[1,2]
+
+    for i, (obj_pts, img_pts) in enumerate(zip(objpoints, imgpoints)):
+        
+        img = cv2.imread(image_paths[i])
+        R, t = extrinsics[i]
+        t_col = t.reshape(3,1)
+
+        P_c = (R @ obj_pts.T) + t_col
+
+        x_norm = P_c[0] / P_c[2]
+        y_norm = P_c[1] / P_c[2]
+
+        r2 = x_norm**2 + y_norm**2
+        r4 = r2**2
+
+        k_factor = 1 + k1 * r2 + k2 * r4
+
+        x_dist = x_norm * k_factor
+        y_dist = y_norm * k_factor
+
+        u_proj = alpha * x_dist + gamma * y_dist + u0
+        v_proj = beta * y_dist + v0
+
+        projected_pts = np.stack((u_proj, v_proj), axis=1)
+
+        vis = img.copy()
+
+        for obs, proj in zip(img_pts, projected_pts):
+            obs = tuple(np.round(obs).astype(int))
+            proj = tuple(np.round(proj).astype(int))
+
+            cv2.circle(vis, obs, 4, (0,255,0), -1)
+
+            cv2.circle(vis, proj, 4, (0,0,255), -1)
+
+        base = os.path.splitext(os.path.basename(image_paths[i]))[0]
+        out_path = os.path.join(out_reproj_dir, f"{base}_reprojection.png")
+        cv2.imwrite(out_path, vis)
+
+save_reprojected_images(image_paths, objpoints, imgpoints, A, k1, k2, extrinsics)
